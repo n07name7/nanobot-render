@@ -5,7 +5,6 @@ CONFIG_DIR="/root/.nanobot"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 mkdir -p "$CONFIG_DIR"
 
-# Build config.json from environment variables
 cat > "$CONFIG_FILE" <<EOF
 {
   "providers": {
@@ -30,11 +29,10 @@ cat > "$CONFIG_FILE" <<EOF
 EOF
 
 echo "Config written to $CONFIG_FILE"
-cat "$CONFIG_FILE"
 
-# Start simple HTTP health-check server in background (keeps Render from sleeping)
+# Start health server first so Render detects the port immediately
 python3 -c "
-import http.server, threading, os
+import http.server, os, threading, sys
 port = int(os.environ.get('PORT', 10000))
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -42,11 +40,14 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'OK')
     def log_message(self, *a): pass
-srv = http.server.HTTPServer(('', port), H)
+srv = http.server.HTTPServer(('0.0.0.0', port), H)
 t = threading.Thread(target=srv.serve_forever, daemon=True)
 t.start()
-print(f'Health server on port {port}')
+sys.stdout.write('Health server on port ' + str(port) + '\n')
+sys.stdout.flush()
+import time; time.sleep(86400)
 " &
 
-# Start nanobot gateway
+sleep 2
+
 exec nanobot gateway
