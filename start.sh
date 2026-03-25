@@ -15,7 +15,7 @@ cat > "$CONFIG_FILE" <<EOF
   },
   "agents": {
     "defaults": {
-      "model": "${NANOBOT_MODEL:-deepseek/deepseek-chat:free}",
+      "model": "${NANOBOT_MODEL:-arcee-ai/trinity-mini:free}",
       "provider": "openrouter"
     }
   },
