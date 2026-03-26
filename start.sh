@@ -14,7 +14,7 @@ cat > "$CONFIG_FILE" <<EOF
   },
   "agents": {
     "defaults": {
-      "model": "${NANOBOT_MODEL:-arcee-ai/trinity-mini:free}",
+      "model": "${NANOBOT_MODEL:-meta-llama/llama-4-maverick:free}",
       "provider": "openrouter"
     }
   },
