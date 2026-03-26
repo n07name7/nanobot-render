@@ -30,9 +30,9 @@ EOF
 
 echo "Config written to $CONFIG_FILE"
 
-# Health server + keepalive pinger (prevents Render free tier from sleeping)
-python3 - <<PYEOF &
-import http.server, os, threading, time, urllib.request
+# Health server — must start first so Render detects the port
+python3 -c "
+import http.server, os, threading, sys, time, urllib.request
 
 port = int(os.environ.get('PORT', 10000))
 
@@ -46,25 +46,28 @@ class H(http.server.BaseHTTPRequestHandler):
 srv = http.server.HTTPServer(('0.0.0.0', port), H)
 t = threading.Thread(target=srv.serve_forever, daemon=True)
 t.start()
-print(f'Health server on port {port}', flush=True)
+sys.stdout.write('Health server on port ' + str(port) + '\n')
+sys.stdout.flush()
 
-# Ping ourselves every 10 minutes to prevent Render free tier sleep
-service_url = os.environ.get('RENDER_EXTERNAL_URL', f'http://localhost:{port}')
+# Keepalive ping every 10 min to prevent Render free tier sleep
+url = os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:' + str(port))
 while True:
     time.sleep(600)
     try:
-        urllib.request.urlopen(service_url, timeout=5)
+        urllib.request.urlopen(url, timeout=5)
     except Exception:
         pass
-PYEOF
+" &
 
-# Hold Telegram polling slot for 10s uninterrupted — proves old instance is dead
+sleep 2
+
+# Wait for Telegram polling slot — hold 10s proves old instance is dead
 echo "Waiting for Telegram polling slot..."
-python3 - <<PYEOF
+python3 << 'PYEOF'
 import urllib.request, urllib.error, os, time
 
 token = os.environ["TELEGRAM_TOKEN"]
-url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=10&limit=1"
+url = "https://api.telegram.org/bot" + token + "/getUpdates?timeout=10&limit=1"
 
 while True:
     try:
@@ -76,14 +79,14 @@ while True:
             print("Conflict (old instance still alive), retrying in 5s...")
             time.sleep(5)
         else:
-            print(f"HTTP {e.code}, retrying in 5s...")
+            print("HTTP " + str(e.code) + ", retrying in 5s...")
             time.sleep(5)
     except Exception as e:
-        print(f"Error: {e}, retrying in 5s...")
+        print("Error: " + str(e) + ", retrying in 5s...")
         time.sleep(5)
 PYEOF
 
-# Restart nanobot if it crashes instead of killing the container
+# Auto-restart nanobot if it crashes
 while true; do
     echo "Starting nanobot..."
     nanobot gateway || true
