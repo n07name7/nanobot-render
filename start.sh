@@ -50,20 +50,27 @@ import time; time.sleep(86400)
 
 # Wait until Telegram polling slot is free (no 409 Conflict from old instance)
 echo "Waiting for Telegram polling slot..."
-while true; do
-    CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-        --max-time 5 \
-        "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?timeout=0&limit=1")
-    if [ "$CODE" = "200" ]; then
-        echo "Telegram polling available, starting nanobot..."
+python3 - <<PYEOF
+import urllib.request, urllib.error, os, time
+
+token = os.environ["TELEGRAM_TOKEN"]
+url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=0&limit=1"
+
+while True:
+    try:
+        urllib.request.urlopen(url, timeout=5)
+        print("Telegram polling available, starting nanobot...")
         break
-    elif [ "$CODE" = "409" ]; then
-        echo "Conflict (old instance running), retrying in 15s..."
-        sleep 15
-    else
-        echo "Unexpected code $CODE, retrying in 5s..."
-        sleep 5
-    fi
-done
+    except urllib.error.HTTPError as e:
+        if e.code == 409:
+            print("Conflict (old instance running), retrying in 15s...")
+            time.sleep(15)
+        else:
+            print(f"HTTP {e.code}, retrying in 5s...")
+            time.sleep(5)
+    except Exception as e:
+        print(f"Error: {e}, retrying in 5s...")
+        time.sleep(5)
+PYEOF
 
 exec nanobot gateway
