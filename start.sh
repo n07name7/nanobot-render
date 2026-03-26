@@ -48,7 +48,22 @@ sys.stdout.flush()
 import time; time.sleep(86400)
 " &
 
-# Wait for any previous instance to shut down before polling Telegram
-sleep 35
+# Wait until Telegram polling slot is free (no 409 Conflict from old instance)
+echo "Waiting for Telegram polling slot..."
+while true; do
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        --max-time 5 \
+        "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?timeout=0&limit=1")
+    if [ "$CODE" = "200" ]; then
+        echo "Telegram polling available, starting nanobot..."
+        break
+    elif [ "$CODE" = "409" ]; then
+        echo "Conflict (old instance running), retrying in 15s..."
+        sleep 15
+    else
+        echo "Unexpected code $CODE, retrying in 5s..."
+        sleep 5
+    fi
+done
 
 exec nanobot gateway
