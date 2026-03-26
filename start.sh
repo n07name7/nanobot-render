@@ -8,14 +8,17 @@ mkdir -p "$CONFIG_DIR"
 cat > "$CONFIG_FILE" <<EOF
 {
   "providers": {
+    "groq": {
+      "apiKey": "${GROQ_API_KEY}"
+    },
     "openrouter": {
       "apiKey": "${OPENROUTER_API_KEY}"
     }
   },
   "agents": {
     "defaults": {
-      "model": "${NANOBOT_MODEL:-meta-llama/llama-3.3-70b-instruct:free}",
-      "provider": "openrouter"
+      "model": "${NANOBOT_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}",
+      "provider": "${NANOBOT_PROVIDER:-groq}"
     }
   },
   "channels": {
