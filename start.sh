@@ -14,7 +14,7 @@ cat > "$CONFIG_FILE" <<EOF
   },
   "agents": {
     "defaults": {
-      "model": "${NANOBOT_MODEL:-meta-llama/llama-4-maverick:free}",
+      "model": "${NANOBOT_MODEL:-meta-llama/llama-3.3-70b-instruct:free}",
       "provider": "openrouter"
     }
   },
@@ -30,23 +30,33 @@ EOF
 
 echo "Config written to $CONFIG_FILE"
 
-# Start health server first so Render detects the port immediately
-python3 -c "
-import http.server, os, threading, sys
+# Health server + keepalive pinger (prevents Render free tier from sleeping)
+python3 - <<PYEOF &
+import http.server, os, threading, time, urllib.request
+
 port = int(os.environ.get('PORT', 10000))
+
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b'OK')
     def log_message(self, *a): pass
+
 srv = http.server.HTTPServer(('0.0.0.0', port), H)
 t = threading.Thread(target=srv.serve_forever, daemon=True)
 t.start()
-sys.stdout.write('Health server on port ' + str(port) + '\n')
-sys.stdout.flush()
-import time; time.sleep(86400)
-" &
+print(f'Health server on port {port}', flush=True)
+
+# Ping ourselves every 10 minutes to prevent Render free tier sleep
+service_url = os.environ.get('RENDER_EXTERNAL_URL', f'http://localhost:{port}')
+while True:
+    time.sleep(600)
+    try:
+        urllib.request.urlopen(service_url, timeout=5)
+    except Exception:
+        pass
+PYEOF
 
 # Hold Telegram polling slot for 10s uninterrupted — proves old instance is dead
 echo "Waiting for Telegram polling slot..."
@@ -54,7 +64,6 @@ python3 - <<PYEOF
 import urllib.request, urllib.error, os, time
 
 token = os.environ["TELEGRAM_TOKEN"]
-# Use a 10-second long-poll: if it completes without 409, old container is truly gone
 url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=10&limit=1"
 
 while True:
@@ -74,4 +83,10 @@ while True:
         time.sleep(5)
 PYEOF
 
-exec nanobot gateway
+# Restart nanobot if it crashes instead of killing the container
+while true; do
+    echo "Starting nanobot..."
+    nanobot gateway || true
+    echo "nanobot exited, restarting in 10s..."
+    sleep 10
+done
