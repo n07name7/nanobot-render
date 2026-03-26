@@ -48,23 +48,24 @@ sys.stdout.flush()
 import time; time.sleep(86400)
 " &
 
-# Wait until Telegram polling slot is free (no 409 Conflict from old instance)
+# Hold Telegram polling slot for 10s uninterrupted — proves old instance is dead
 echo "Waiting for Telegram polling slot..."
 python3 - <<PYEOF
 import urllib.request, urllib.error, os, time
 
 token = os.environ["TELEGRAM_TOKEN"]
-url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=0&limit=1"
+# Use a 10-second long-poll: if it completes without 409, old container is truly gone
+url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=10&limit=1"
 
 while True:
     try:
-        urllib.request.urlopen(url, timeout=5)
-        print("Telegram polling available, starting nanobot...")
+        urllib.request.urlopen(url, timeout=15)
+        print("Held polling slot for 10s — old instance is gone, starting nanobot...")
         break
     except urllib.error.HTTPError as e:
         if e.code == 409:
-            print("Conflict (old instance running), retrying in 15s...")
-            time.sleep(15)
+            print("Conflict (old instance still alive), retrying in 5s...")
+            time.sleep(5)
         else:
             print(f"HTTP {e.code}, retrying in 5s...")
             time.sleep(5)
