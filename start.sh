@@ -48,6 +48,7 @@ sys.stdout.flush()
 import time; time.sleep(86400)
 " &
 
-sleep 2
+# Wait for any previous instance to shut down before polling Telegram
+sleep 35
 
 exec nanobot gateway
